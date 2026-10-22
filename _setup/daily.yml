@@ -1,0 +1,33 @@
+name: Build daily feed
+
+on:
+  schedule:
+    # 매일 19:00 UTC = 한국 시간 새벽 04:00 (한가한 시간). GitHub 무료 플랜에서 동작.
+    - cron: "0 19 * * *"
+  push:
+    paths: ["data/**", "scripts/**", ".github/workflows/daily.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fill YouTube ids (optional, needs YOUTUBE_API_KEY secret)
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: python scripts/fetch_youtube_ids.py
+      - name: Build feed/songs.json
+        run: python scripts/build_feed.py
+      - name: Commit if changed
+        run: |
+          git config user.name "singnumber-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data feed
+          if git diff --cached --quiet; then echo "no changes"; else git commit -m "daily feed $(date -u +%F)" && git push; fi
